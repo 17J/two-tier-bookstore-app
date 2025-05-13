@@ -1,1 +1,52 @@
+name: Three-Tier App Deploy CD
 
+on:
+  repository_dispatch:
+    types: [ trigger-cd ]
+
+permissions:
+  id-token: write  # Required for Azure OIDC login
+  contents: write  # Required for committing manifest updates
+
+jobs:
+  deploy-gitops:
+    runs-on: self-hosted
+    environment: production
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: main
+        token: ${{ secrets.GH_TOKEN }}
+
+    - name: Azure Login via OIDC
+      uses: azure/login@v1.4.6
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Set AKS Context
+      uses: azure/aks-set-context@v3
+      with:
+        resource-group: revisegithub
+        cluster-name: devbook
+
+    - name: Update Kubernetes Manifests
+      env:
+        IMAGE_VERSION: ${{ github.event.client_payload.image_version }}
+      run: |
+        sed -i "s|17rj/three-tier-todo-frontend:.*|17rj/three-tier-todo-frontend:${IMAGE_VERSION}|g" k8s-manifests/frontend-deployment.yaml
+        sed -i "s|17rj/three-tier-todo-backend:.*|17rj/three-tier-todo-backend:${IMAGE_VERSION}|g" k8s-manifests/backend-deployment.yaml
+
+    - name: Commit Manifest Updates
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        git add k8s-manifests/
+        git commit -m "Update image versions to ${IMAGE_VERSION}"
+        git push origin main
+
+    - name: Verify ArgoCD Sync
+      run: |
+        argocd app sync three-tier-app --assumeYes --timeout 300
+        argocd app wait three-tier-app --health --timeout 300
