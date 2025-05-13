@@ -1,34 +1,68 @@
-name: Java CI with Maven
+name: Three-Tier App Build CI
 
 on:
   push:
     branches: [ "main" ]
 
 permissions:
-  id-token: write
   contents: read
 
-
 jobs:
-  fullstack-build:
-
+  build-and-push:
     runs-on: self-hosted
-
+    outputs:
+      image_version: ${{ steps.set-version.outputs.image_version }}
     steps:
     - uses: actions/checkout@v4
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
+
+    - name: Set Image Version
+      id: set-version
+      run: echo "image_version=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Use Node.js for Frontend
+      uses: actions/setup-node@v4
       with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: maven
-        cache-dependency-path: bookStore/pom.xml
-        
-    - name: Build with Maven
-      working-directory: bookStore
-      run: mvn clean package  -DskipTests=true
-    - name: Docker Build and Push
+        node-version: 18
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install and Build React App
+      working-directory: frontend
       run: |
-        docker build -t 17rj/bookstore-spring-book:latest bookStore/
+        npm ci
+        npm run build
+        npm run test  # Run tests for CI validation
+
+    - name: Docker Build and Push (Frontend)
+      run: |
+        docker build -t 17rj/three-tier-todo-frontend:${{ steps.set-version.outputs.image_version }} -t 17rj/three-tier-todo-frontend:latest frontend/
         echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-        docker push 17rj/bookstore-spring-book:latest
+        docker push 17rj/three-tier-todo-frontend:${{ steps.set-version.outputs.image_version }}
+        docker push 17rj/three-tier-todo-frontend:latest
+
+    - name: Setup JDK for Backend
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Build Java Backend with Maven
+      working-directory: backend
+      run: |
+        mvn clean verify
+        mvn test  # Run tests for CI validation
+
+    - name: Docker Build and Push (Backend)
+      run: |
+        docker build -t 17rj/three-tier-todo-backend:${{ steps.set-version.outputs.image_version }} -t 17rj/three-tier-todo-backend:latest backend/
+        echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+        docker push 17rj/three-tier-todo-backend:${{ steps.set-version.outputs.image_version }}
+        docker push 17rj/three-tier-todo-backend:latest
+
+    - name: Trigger CD Pipeline
+      uses: peter-evans/repository-dispatch@v2
+      with:
+        token: ${{ secrets.GH_TOKEN }}
+        repository: ${{ github.repository }}
+        event-type: trigger-cd
+        client-payload: '{"image_version": "${{ steps.set-version.outputs.image_version }}"}'
