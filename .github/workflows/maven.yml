@@ -36,5 +36,25 @@ jobs:
         docker build -t 17rj/bookstore-spring-book:latest bookStore/
         echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
         docker push 17rj/bookstore-spring-book:latest
+        
+  deploy-k8s-aks:
+    needs: fullstack-build
+    runs-on: self-hosted
 
+    steps:
+    - uses: actions/checkout@v4
+    - name: Azure login via OIDC
+      uses: azure/login@v1.4.6
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: Set AKS context
+      uses: azure/aks-set-context@v3
+      with:
+        resource-group: revisegithub 
+        cluster-name: devbook
+    - name: Deploy Kubernetes Manifests 
+      run: |
+        kubectl apply -f K8s/
  
