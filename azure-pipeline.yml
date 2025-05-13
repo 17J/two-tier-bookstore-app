@@ -1,0 +1,106 @@
+trigger:
+  branches:
+    include:
+      - main
+      - dev
+
+variables:
+  dockerRegistryServiceConnection: 'dev'
+  containerRepository: 'devs'
+  imageTag: '$(Build.BuildId)'
+  workingDir: 'bookStore'
+  kubernetesConnection: 'devs'
+  namespace: 'default'
+
+pool:
+  name: DEVPOOL
+
+stages:
+  - stage: compile
+    displayName: 'Maven Compile'
+    jobs:
+      - job: maven_compile
+        displayName: 'Maven Compile Job'
+        steps:
+          - task: Maven@4
+            inputs:
+              mavenPomFile: '$(workingDir)/pom.xml'
+              goals: 'compile'
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              javaHomeOption: 'JDKVersion'
+              mavenVersionOption: 'Default'
+              mavenAuthenticateFeed: false
+              effectivePomSkip: false
+              sonarQubeRunAnalysis: false
+
+  - stage: test
+    displayName: 'Maven Test'
+    dependsOn: compile
+    jobs:
+      - job: maven_test
+        displayName: 'Maven Test Job'
+        steps:
+          - script: |
+              cd $(workingDir)
+              mvn clean install -DskipTests=true
+            displayName: 'Run Maven Clean Install'
+
+  - stage: trivy
+    displayName: 'Trivy Scan'
+    dependsOn: test
+    jobs:
+      - job: trivy_scan
+        displayName: 'Trivy Repo Scan'
+        steps:
+          - script: 'trivy fs --format table -o repo-report.html .'  
+            displayName: 'Run Trivy Filesystem Scan'
+
+  - stage: artifact
+    displayName: 'Create Artifact'
+    dependsOn: trivy
+    jobs:
+      - job: artifact
+        displayName: 'Artifact Creation Job'
+        steps:
+          - task: MavenAuthenticate@0
+            inputs:
+              artifactsFeeds: 'devops_mvn'
+          - script: |
+              cd $(workingDir)
+              mvn deploy -DskipTests=true
+            displayName: 'Deploy Maven Artifact'
+
+  - stage: docker_build
+    displayName: 'Docker Build & Push'
+    dependsOn: artifact
+    jobs:
+      - job: docker_build
+        displayName: 'Docker Build Job'
+        steps:
+          - task: Docker@2
+            inputs:
+              containerRegistry: '$(dockerRegistryServiceConnection)'
+              repository: '$(containerRepository)'
+              command: 'buildAndPush'
+              Dockerfile: '**/Dockerfile'
+              tags: '$(imageTag)'
+
+  - stage: deploy_to_aks
+    displayName: 'Deploy to AKS'
+    dependsOn: docker_build
+    jobs:
+      - job: deploy_to_aks
+        displayName: 'Deploy to AKS Job'
+        steps:
+          - task: KubernetesManifest@1
+            inputs:
+              action: 'deploy'
+              connectionType: 'kubernetesServiceConnection'
+              kubernetesServiceConnection: '$(kubernetesConnection)'
+              namespace: '$(namespace)'
+              manifests: '$(workingDir)/fullstack-ds.yml'
+          - script: |
+              kubectl rollout status deployment/frontend-deployment --namespace=$(namespace) --timeout=120s
+              kubectl rollout status deployment/backend-deployment --namespace=$(namespace) --timeout=120s
+            displayName: 'Verify Rollout Status'
