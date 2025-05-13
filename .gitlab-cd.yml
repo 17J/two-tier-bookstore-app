@@ -1,0 +1,35 @@
+stages:
+  - deploy
+
+deploy_gitops:
+  stage: deploy
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update && apt-get install -y curl git
+    - curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+    - chmod +x /usr/local/bin/argocd
+    - git config --global user.name "GitLab CI Bot"
+    - git config --global user.email "ci@gitlab.com"
+  script:
+    # Azure OIDC Login
+    - curl -sSL https://aka.ms/InstallAzureCLIDeb | bash
+    - az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
+    - az aks get-credentials --resource-group revisegithub --name devbook
+
+    # Update Manifests
+    - sed -i "s|17rj/three-tier-todo-frontend:.*|17rj/three-tier-todo-frontend:${IMAGE_VERSION}|g" k8s-manifests/frontend-deployment.yaml
+    - sed -i "s|17rj/three-tier-todo-backend:.*|17rj/three-tier-todo-backend:${IMAGE_VERSION}|g" k8s-manifests/backend-deployment.yaml
+
+    # Commit Changes
+    - git add k8s-manifests/
+    - git commit -m "Update image versions to ${IMAGE_VERSION}" || echo "No changes to commit"
+    - git push https://oauth2:${GITLAB_ACCESS_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git HEAD:main
+
+    # Verify ArgoCD Sync
+    - argocd login $ARGOCD_SERVER --token $ARGOCD_AUTH_TOKEN
+    - argocd app sync three-tier-app --assumeYes --timeout 300
+    - argocd app wait three-tier-app --health --timeout 300
+  environment:
+    name: production
+  tags:
+    - self-hosted
