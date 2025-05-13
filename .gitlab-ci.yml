@@ -1,86 +1,179 @@
+# Define the stages of the pipeline in execution order
 stages:
-  - build
-  - trigger
+  - build        # Build and test the application
+  - security     # Run security scans
+  - push         # Push Docker images to registry
+  - trigger      # Trigger the CD pipeline
 
+# Global variables available to all jobs
 variables:
-  IMAGE_VERSION: $CI_COMMIT_SHORT_SHA
+  IMAGE_VERSION: $CI_COMMIT_SHORT_SHA  # Use short commit SHA as image tag for traceability
+  DOCKER_HOST: tcp://docker:2375       # Docker-in-Docker host for container builds
+  DOCKER_TLS_CERTDIR: ""               # Disable TLS for DinD to simplify setup
 
+# Job to build and test the React frontend
 frontend_build:
   stage: build
-  image: node:18
+  image: node:18  # Use Node.js 18 image for frontend build
   before_script:
-    - cd frontend
-    - npm ci
+    - cd frontend  # Navigate to frontend directory
+    - npm ci       # Install dependencies using package-lock.json for consistency
   script:
-    - npm run build
-    - npm run test
+    - npm run build  # Build the React app for production
+    - npm run test   # Run unit tests (e.g., Jest) to ensure code quality
   cache:
-    key: ${CI_COMMIT_REF_SLUG}
+    key: ${CI_COMMIT_REF_SLUG}  # Cache dependencies based on branch
     paths:
-      - frontend/node_modules/
+      - frontend/node_modules/  # Cache node_modules to speed up builds
+  tags:
+    - self-hosted  # Run on self-hosted runner with appropriate resources
+
+# Job to scan frontend code with SonarQube
+frontend_sonar:
+  stage: security
+  image: maven:3.8-openjdk-17  # Use Maven image for SonarQube scanner compatibility
+  needs:
+    - frontend_build  # Run after frontend build completes
+  script:
+    - cd frontend
+    # Run SonarQube scanner for JavaScript code
+    - mvn sonar:sonar -Dsonar.projectKey=frontend -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN
   tags:
     - self-hosted
 
-frontend_docker:
-  stage: build
-  image: docker:24
+# Job to scan frontend dependencies with Snyk
+frontend_snyk:
+  stage: security
+  image: node:18
   needs:
     - frontend_build
-  services:
-    - docker:dind
   script:
+    - cd frontend
+    # Install Snyk CLI
+    - npm install -g snyk
+    # Authenticate with Snyk using token
+    - snyk auth $SNYK_TOKEN
+    # Scan package.json for vulnerabilities
+    - snyk test --file=package.json
+  tags:
+    - self-hosted
+
+# Job to build and scan frontend Docker image
+frontend_docker:
+  stage: push
+  image: docker:24  # Use Docker image for building containers
+  needs:
+    - frontend_sonar
+    - frontend_snyk  # Ensure security scans pass before building
+  services:
+    - docker:dind  # Enable Docker-in-Docker for building images
+  script:
+    # Build Docker image with commit SHA and latest tags
     - docker build -t 17rj/three-tier-todo-frontend:${IMAGE_VERSION} -t 17rj/three-tier-todo-frontend:latest frontend/
+    # Scan image with Trivy for vulnerabilities
+    - docker run --rm aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL 17rj/three-tier-todo-frontend:${IMAGE_VERSION}
+    # Log in to Docker Hub
     - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+    # Push both tagged and latest images
     - docker push 17rj/three-tier-todo-frontend:${IMAGE_VERSION}
     - docker push 17rj/three-tier-todo-frontend:latest
-  variables:
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
   tags:
     - self-hosted
 
+# Job to build and test the Java backend
 backend_build:
   stage: build
-  image: maven:3.8-openjdk-17
+  image: maven:3.8-openjdk-17  # Use Maven image with JDK 17
   before_script:
-    - cd backend
+    - cd backend  # Navigate to backend directory
   script:
-    - mvn clean verify
-    - mvn test
+    - mvn clean verify  # Build and run integration tests
+    - mvn test          # Run unit tests to ensure code quality
   cache:
-    key: ${CI_COMMIT_REF_SLUG}
+    key: ${CI_COMMIT_REF_SLUG}  # Cache Maven dependencies based on branch
     paths:
-      - backend/.m2/
+      - backend/.m2/  # Cache Maven repository to speed up builds
   tags:
     - self-hosted
 
-backend_docker:
-  stage: build
-  image: docker:24
+# Job to scan backend code with SonarQube
+backend_sonar:
+  stage: security
+  image: maven:3.8-openjdk-17
   needs:
     - backend_build
+  script:
+    - cd backend
+    # Run SonarQube scanner for Java code
+    - mvn sonar:sonar -Dsonar.projectKey=backend -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN
+  tags:
+    - self-hosted
+
+# Job to scan backend dependencies with Snyk
+backend_snyk:
+  stage: security
+  image: maven:3.8-openjdk-17
+  needs:
+    - backend_build
+  script:
+    - cd backend
+    # Install Snyk CLI
+    - curl -sSL https://github.com/snyk/snyk/releases/latest/download/snyk-linux -o snyk
+    - chmod +x snyk
+    # Authenticate with Snyk
+    - ./snyk auth $SNYK_TOKEN
+    # Scan pom.xml for vulnerabilities
+    - ./snyk test --file=pom.xml
+  tags:
+    - self-hosted
+
+# Job to build and scan backend Docker image
+backend_docker:
+  stage: push
+  image: docker:24
+  needs:
+    - backend_sonar
+    - backend_snyk  # Ensure security scans pass before building
   services:
     - docker:dind
   script:
+    # Build Docker image with commit SHA and latest tags
     - docker build -t 17rj/three-tier-todo-backend:${IMAGE_VERSION} -t 17rj/three-tier-todo-backend:latest backend/
+    # Scan image with Trivy for vulnerabilities
+    - docker run --rm aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL 17rj/three-tier-todo-backend:${IMAGE_VERSION}
+    # Log in to Docker Hub
     - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+    # Push both tagged and latest images
     - docker push 17rj/three-tier-todo-backend:${IMAGE_VERSION}
     - docker push 17rj/three-tier-todo-backend:latest
-  variables:
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
   tags:
     - self-hosted
 
+# Job to scan repository for secrets with Gitleaks
+gitleaks:
+  stage: security
+  image: zricethezav/gitleaks:latest
+  script:
+    # Scan repository for secrets (e.g., API keys, passwords)
+    - gitleaks detect --source . --verbose --report-path gitleaks-report.json
+  artifacts:
+    paths:
+      - gitleaks-report.json  # Store report for review
+    when: always
+  tags:
+    - self-hosted
+
+# Job to trigger the CD pipeline
 trigger_cd:
   stage: trigger
   needs:
     - frontend_docker
     - backend_docker
+    - gitleaks  # Ensure all security and push jobs complete
   trigger:
-    include: deploy-cd.yml
-    strategy: depend
+    include: deploy-cd.yml  # Reference the CD pipeline file
+    strategy: depend       # Run CD pipeline only if this job succeeds
   variables:
-    IMAGE_VERSION: $IMAGE_VERSION
+    IMAGE_VERSION: $IMAGE_VERSION  # Pass image version to CD pipeline
   tags:
     - self-hosted
