@@ -1,0 +1,86 @@
+stages:
+  - build
+  - trigger
+
+variables:
+  IMAGE_VERSION: $CI_COMMIT_SHORT_SHA
+
+frontend_build:
+  stage: build
+  image: node:18
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm run build
+    - npm run test
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - frontend/node_modules/
+  tags:
+    - self-hosted
+
+frontend_docker:
+  stage: build
+  image: docker:24
+  needs:
+    - frontend_build
+  services:
+    - docker:dind
+  script:
+    - docker build -t 17rj/three-tier-todo-frontend:${IMAGE_VERSION} -t 17rj/three-tier-todo-frontend:latest frontend/
+    - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+    - docker push 17rj/three-tier-todo-frontend:${IMAGE_VERSION}
+    - docker push 17rj/three-tier-todo-frontend:latest
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  tags:
+    - self-hosted
+
+backend_build:
+  stage: build
+  image: maven:3.8-openjdk-17
+  before_script:
+    - cd backend
+  script:
+    - mvn clean verify
+    - mvn test
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - backend/.m2/
+  tags:
+    - self-hosted
+
+backend_docker:
+  stage: build
+  image: docker:24
+  needs:
+    - backend_build
+  services:
+    - docker:dind
+  script:
+    - docker build -t 17rj/three-tier-todo-backend:${IMAGE_VERSION} -t 17rj/three-tier-todo-backend:latest backend/
+    - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+    - docker push 17rj/three-tier-todo-backend:${IMAGE_VERSION}
+    - docker push 17rj/three-tier-todo-backend:latest
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  tags:
+    - self-hosted
+
+trigger_cd:
+  stage: trigger
+  needs:
+    - frontend_docker
+    - backend_docker
+  trigger:
+    include: deploy-cd.yml
+    strategy: depend
+  variables:
+    IMAGE_VERSION: $IMAGE_VERSION
+  tags:
+    - self-hosted
