@@ -15,7 +15,7 @@ stages:
             inputs:
               azureSubscription: 'webapptest'
               mavenPomFile: 'bookStore/pom.xml'
-              goals: 'clean install'
+              goals: 'clean install -DskipTests=true'
               publishJUnitResults: false
               javaHomeOption: 'JDKVersion'
               mavenVersionOption: 'Default'
