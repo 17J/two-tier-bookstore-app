@@ -1,4 +1,3 @@
-
 trigger:
 - main
 
@@ -25,31 +24,30 @@ stages:
               effectivePomSkip: false
               sonarQubeRunAnalysis: false
 
-  - stage: Archievewebapp
-    displayName: 'deploy webapp'
-    jobs:
-      - job: archivefiles
-        displayName: 'archieve'
-        steps:
-          - task: ArchiveFiles@2
-            inputs:
-              rootFolderOrFile: '$(Build.BinariesDirectory)'
-              includeRootFolder: true
-              archiveType: 'zip'
-              archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-              replaceExistingArchive: true
+  # - stage: Archievewebapp
+  #   displayName: 'deploy webapp'
+  #   jobs:
+  #     - job: archivefiles
+  #       displayName: 'archieve'
+  #       steps:
+  #         - task: ArchiveFiles@2
+  #           inputs:
+  #             rootFolderOrFile: '$(Build.BinariesDirectory)'
+  #             includeRootFolder: true
+  #             archiveType: 'zip'
+  #             archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+  #             replaceExistingArchive: true
 
 
-  - stage: webappsdeploy
-    displayName: 'Push webapps'
-    jobs: 
-      - job: webappdeploy
-        displayName: 'Push to webapp'
-        steps:
-          - task: AzureWebApp@1
-            inputs:
-              azureSubscription: 'Azure subscription 1(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
-              appType: 'webAppLinux'
-              appName: 'twotierbookstore'
-              package: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-
+  # - stage: webappsdeploy
+  #   displayName: 'Push webapps'
+  #   jobs: 
+  #     - job: webappdeploy
+  #       displayName: 'Push to webapp'
+  #       steps:
+  #         - task: AzureWebApp@1
+  #           inputs:
+  #             azureSubscription: 'Azure subscription 1(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
+  #             appType: 'webAppLinux'
+  #             appName: 'twotierbookstore'
+  #             package: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
