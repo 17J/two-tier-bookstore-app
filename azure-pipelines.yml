@@ -29,7 +29,7 @@ stages:
           - task: CopyFiles@2
             displayName: 'Copy Build Artifact to Staging'
             inputs:
-              Contents: 'bookStore/target/*.war' # Adjust if it's a .jar or other extension
+              Contents: 'bookStore/target/*.jar' # Adjust if it's a .jar or other extension
               TargetFolder: '$(Build.ArtifactStagingDirectory)'
               flattenFolders: true # Optional: Copies only the file, not the target/ folder structure
 
