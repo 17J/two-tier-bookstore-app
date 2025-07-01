@@ -26,17 +26,19 @@ stages:
 
           # Add a task to copy the built WAR/JAR file to the artifact staging directory
           # Maven usually puts the build artifact in target/
-          # - task: CopyFiles@2
-          #   displayName: 'Copy Build Artifact to Staging'
-          #   inputs:
-          #     Contents: 'bookStore/target/*.war' # Adjust if it's a .jar or other extension
-          #     TargetFolder: '$(Build.ArtifactStagingDirectory)'
-          #     flattenFolders: true # Optional: Copies only the file, not the target/ folder structure
+          - task: CopyFiles@2
+            displayName: 'Copy Build Artifact to Staging'
+            inputs:
+              Contents: 'bookStore/target/*.war' # Adjust if it's a .jar or other extension
+              TargetFolder: '$(Build.ArtifactStagingDirectory)'
+              flattenFolders: true # Optional: Copies only the file, not the target/ folder structure
 
           - task: ArchiveFiles@2
+            displayName: 'Archive Webapp Files'
             inputs:
-              rootFolderOrFile: '$(Build.BinariesDirectory)'
-              includeRootFolder: false
+              # Root folder should be the staging directory where the WAR/JAR was copied
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)'
+              includeRootFolder: false # Set to true if you want the staging folder itself in the zip
               archiveType: 'zip'
               archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
               replaceExistingArchive: true
