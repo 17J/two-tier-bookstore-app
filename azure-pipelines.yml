@@ -33,10 +33,10 @@ stages:
           - task: ArchiveFiles@2
             inputs:
               rootFolderOrFile: '$(Build.BinariesDirectory)'
-              includeRootFolder: true
+              includeRootFolder: false
               archiveType: 'zip'
               archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-              replaceExistingArchive: true
+              replaceExistingArchive: false
 
 
   - stage: webappsdeploy
@@ -47,7 +47,7 @@ stages:
         steps:
           - task: AzureWebApp@1
             inputs:
-              azureSubscription: 'Azure subscription 1(1)(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
+              azureSubscription: 'Azure subscription 1(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
               appType: 'webAppLinux'
               appName: 'webappss'
               package: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
