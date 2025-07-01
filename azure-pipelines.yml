@@ -5,13 +5,14 @@ pool:
   name: Runner
 
 stages:
-  - stage: install
-    displayName: 'Install Tools'
+  - stage: BuildAndArchive
+    displayName: 'Build and Archive Webapp'
     jobs:
-      - job: InstallMaven
-        displayName: 'Install Backendtools'
+      - job: BuildAndArchiveJob
+        displayName: 'Build and Archive Backend'
         steps:
           - task: Maven@4
+            displayName: 'Maven Build and Install'
             inputs:
               azureSubscription: 'Azure subscription 1(1)(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
               mavenPomFile: 'bookStore/pom.xml'
@@ -23,30 +24,46 @@ stages:
               effectivePomSkip: false
               sonarQubeRunAnalysis: false
 
+          # Add a task to copy the built WAR/JAR file to the artifact staging directory
+          # Maven usually puts the build artifact in target/
+          # - task: CopyFiles@2
+          #   displayName: 'Copy Build Artifact to Staging'
+          #   inputs:
+          #     Contents: 'bookStore/target/*.war' # Adjust if it's a .jar or other extension
+          #     TargetFolder: '$(Build.ArtifactStagingDirectory)'
+          #     flattenFolders: true # Optional: Copies only the file, not the target/ folder structure
 
-  - stage: Archievewebapp
-    displayName: 'deploy webapp'
-    jobs:
-      - job: archivefiles
-        displayName: 'archieve'
-        steps:
           - task: ArchiveFiles@2
+            displayName: 'Archive Webapp Files'
             inputs:
-              rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
-              includeRootFolder: false
+              # Root folder should be the staging directory where the WAR/JAR was copied
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)'
+              includeRootFolder: false # Set to true if you want the staging folder itself in the zip
               archiveType: 'zip'
               archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
               replaceExistingArchive: true
 
-  - stage: webappsdeploy
-    displayName: 'Push webapps'
-    jobs: 
-      - job: webappdeploy
-        displayName: 'Push to webapp'
+          # IMPORTANT: Publish the artifact so it's available to subsequent stages
+          - publish: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+            artifact: drop # Name of the artifact, 'drop' is common
+            displayName: 'Publish Webapp Artifact'
+
+  - stage: DeployWebapp
+    displayName: 'Deploy Webapp'
+    jobs:
+      - job: DeployJob
+        displayName: 'Push to Webapp'
         steps:
+          # IMPORTANT: Download the artifact published in the previous stage
+          - download: current # 'current' refers to artifacts from the current pipeline run
+            artifact: drop # The name of the artifact you published
+            displayName: 'Download Webapp Artifact'
+
           - task: AzureWebApp@1
+            displayName: 'Deploy to Azure Web App'
             inputs:
               azureSubscription: 'Azure subscription 1(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
               appType: 'webAppLinux'
               appName: 'webappss'
-              package: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+              # The package is now downloaded to $(Pipeline.Workspace)/drop/
+              package: '$(Pipeline.Workspace)/drop/$(Build.BuildId).zip'
