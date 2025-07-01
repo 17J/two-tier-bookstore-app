@@ -1,0 +1,12 @@
+
+trigger:
+- main
+
+pool:
+  name: Runner
+
+steps:
+- script: echo Hello, world!
+  displayName: 'Run a one-line script'
+
+
