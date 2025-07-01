@@ -6,7 +6,22 @@ pool:
   name: Runner
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+  - task: ArchiveFiles@2
+    displayName: 'Archive Application File'
+    inputs:
+      rootFolderOrFile: '$(System.DefaultWorkingDirectory)' # Zips everything in your repo root
+      includeRootFolder: false # Don't include the root folder in the zip itself
+      archiveType: 'zip'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip' # Name your zip file
+      replaceExistingArchive: true
 
+  - task: AzureRmWebAppDeployment@5
+    inputs:
+      ConnectionType: 'AzureRM'
+      azureSubscription: 'Azure subscription 1(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
+      appType: 'webAppLinux'
+      WebAppName: 'twotierbookstore'
+      packageForLinux: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+      RuntimeStack: 'JAVA|11-java11'
+      DeploymentTypeLinux: 'oneDeploy'
 
