@@ -13,16 +13,27 @@ stages:
         steps:
           - task: Maven@4
             inputs:
-              azureSubscription: 'Azure subscription 1(2)(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
+              azureSubscription: 'webapptest'
               mavenPomFile: 'bookStore/pom.xml'
               goals: 'clean install'
               publishJUnitResults: false
               javaHomeOption: 'JDKVersion'
-              jdkVersionOption: '1.21'
               mavenVersionOption: 'Default'
               mavenAuthenticateFeed: false
               effectivePomSkip: false
               sonarQubeRunAnalysis: false
+          # - task: Maven@4
+          #   inputs:
+          #     azureSubscription: 'Azure subscription 1(2)(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
+          #     mavenPomFile: 'bookStore/pom.xml'
+          #     goals: 'clean install'
+          #     publishJUnitResults: false
+          #     javaHomeOption: 'JDKVersion'
+          #     jdkVersionOption: '1.21'
+          #     mavenVersionOption: 'Default'
+          #     mavenAuthenticateFeed: false
+          #     effectivePomSkip: false
+          #     sonarQubeRunAnalysis: false
 
   # - stage: Archievewebapp
   #   displayName: 'deploy webapp'
