@@ -6,6 +6,12 @@ pool:
   name: Runner
 
 steps:
+  - task: Maven@4
+    inputs:
+      mavenPomFile: 'bookStore/pom.xml'
+      goals: 'clean install'
+      javaHomeOption: 'JDKVersion'
+      mavenVersionOption: 'Default'
   - task: ArchiveFiles@2
     displayName: 'Archive Application File'
     inputs:
