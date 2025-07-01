@@ -5,29 +5,51 @@ trigger:
 pool:
   name: Runner
 
-steps:
-  - task: Maven@4
-    inputs:
-      mavenPomFile: 'bookStore/pom.xml'
-      goals: 'clean install'
-      javaHomeOption: 'JDKVersion'
-      mavenVersionOption: 'Default'
-  - task: ArchiveFiles@2
-    displayName: 'Archive Application File'
-    inputs:
-      rootFolderOrFile: '$(System.DefaultWorkingDirectory)' # Zips everything in your repo root
-      includeRootFolder: false # Don't include the root folder in the zip itself
-      archiveType: 'zip'
-      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip' # Name your zip file
-      replaceExistingArchive: true
+stages:
+  - stage: install
+    displayName: 'Install Tools'
+    jobs:
+      - job: InstallMaven
+        displayName: 'Install Backendtools'
+        steps:
+          - task: Maven@4
+            inputs:
+              azureSubscription: 'testing'
+              mavenPomFile: 'bookStore/pom.xml'
+              goals: 'clean install'
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              javaHomeOption: 'JDKVersion'
+              mavenVersionOption: 'Default'
+              mavenAuthenticateFeed: false
+              effectivePomSkip: false
+              sonarQubeRunAnalysis: false
 
-  - task: AzureRmWebAppDeployment@5
-    inputs:
-      ConnectionType: 'AzureRM'
-      azureSubscription: 'Azure subscription 1(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
-      appType: 'webAppLinux'
-      WebAppName: 'twotierbookstore'
-      packageForLinux: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-      RuntimeStack: 'JAVA|11-java11'
-      DeploymentTypeLinux: 'oneDeploy'
+  - stage: Archievewebapp
+    displayName: 'deploy webapp'
+    jobs:
+      - job: archivefiles
+        displayName: 'archieve'
+        steps:
+          - task: ArchiveFiles@2
+            inputs:
+              rootFolderOrFile: '$(Build.BinariesDirectory)'
+              includeRootFolder: true
+              archiveType: 'zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+              replaceExistingArchive: true
+
+
+  - stage: webappsdeploy
+    displayName: 'Push webapps'
+    jobs: 
+      - job: webappdeploy
+        displayName: 'Push to webapp'
+        steps:
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: 'Azure subscription 1(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
+              appType: 'webAppLinux'
+              appName: 'twotierbookstore'
+              package: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
 
