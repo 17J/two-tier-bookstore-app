@@ -37,7 +37,7 @@ stages:
             displayName: 'Archive Webapp Files'
             inputs:
               # Root folder should be the staging directory where the WAR/JAR was copied
-              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)'
+              rootFolderOrFile: '$(System.DefaultWorkingDirectory))'
               includeRootFolder: false # Set to true if you want the staging folder itself in the zip
               archiveType: 'zip'
               archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
