@@ -32,12 +32,11 @@ stages:
         steps:
           - task: ArchiveFiles@2
             inputs:
-              rootFolderOrFile: '$(Build.BinariesDirectory)'
+              rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
               includeRootFolder: false
               archiveType: 'zip'
               archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-              replaceExistingArchive: false
-
+              replaceExistingArchive: true
 
   - stage: webappsdeploy
     displayName: 'Push webapps'
