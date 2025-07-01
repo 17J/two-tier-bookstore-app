@@ -13,7 +13,7 @@ stages:
         steps:
           - task: Maven@4
             inputs:
-              azureSubscription: 'webapptest'
+              azureSubscription: 'Azure subscription 1(1)(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
               mavenPomFile: 'bookStore/pom.xml'
               goals: 'clean install -DskipTests=true'
               publishJUnitResults: false
@@ -22,43 +22,33 @@ stages:
               mavenAuthenticateFeed: false
               effectivePomSkip: false
               sonarQubeRunAnalysis: false
-          # - task: Maven@4
-          #   inputs:
-          #     azureSubscription: 'Azure subscription 1(2)(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
-          #     mavenPomFile: 'bookStore/pom.xml'
-          #     goals: 'clean install'
-          #     publishJUnitResults: false
-          #     javaHomeOption: 'JDKVersion'
-          #     jdkVersionOption: '1.21'
-          #     mavenVersionOption: 'Default'
-          #     mavenAuthenticateFeed: false
-          #     effectivePomSkip: false
-          #     sonarQubeRunAnalysis: false
-
-  # - stage: Archievewebapp
-  #   displayName: 'deploy webapp'
-  #   jobs:
-  #     - job: archivefiles
-  #       displayName: 'archieve'
-  #       steps:
-  #         - task: ArchiveFiles@2
-  #           inputs:
-  #             rootFolderOrFile: '$(Build.BinariesDirectory)'
-  #             includeRootFolder: true
-  #             archiveType: 'zip'
-  #             archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-  #             replaceExistingArchive: true
 
 
-  # - stage: webappsdeploy
-  #   displayName: 'Push webapps'
-  #   jobs: 
-  #     - job: webappdeploy
-  #       displayName: 'Push to webapp'
-  #       steps:
-  #         - task: AzureWebApp@1
-  #           inputs:
-  #             azureSubscription: 'Azure subscription 1(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
-  #             appType: 'webAppLinux'
-  #             appName: 'twotierbookstore'
-  #             package: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+  - stage: Archievewebapp
+    displayName: 'deploy webapp'
+    jobs:
+      - job: archivefiles
+        displayName: 'archieve'
+        steps:
+          - task: ArchiveFiles@2
+            inputs:
+              rootFolderOrFile: '$(Build.BinariesDirectory)'
+              includeRootFolder: true
+              archiveType: 'zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+              replaceExistingArchive: true
+
+
+  - stage: webappsdeploy
+    displayName: 'Push webapps'
+    jobs: 
+      - job: webappdeploy
+        displayName: 'Push to webapp'
+        steps:
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: 'Azure subscription 1(1)(a77db116-2dc8-4845-bc9e-5c69f3417a2d)'
+              appType: 'webAppLinux'
+              appName: 'webappss'
+              package: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+          
