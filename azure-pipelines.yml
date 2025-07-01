@@ -34,11 +34,9 @@ stages:
           #     flattenFolders: true # Optional: Copies only the file, not the target/ folder structure
 
           - task: ArchiveFiles@2
-            displayName: 'Archive Webapp Files'
             inputs:
-              # Root folder should be the staging directory where the WAR/JAR was copied
-              rootFolderOrFile: '$(System.DefaultWorkingDirectory))'
-              includeRootFolder: false # Set to true if you want the staging folder itself in the zip
+              rootFolderOrFile: '$(Build.BinariesDirectory)'
+              includeRootFolder: false
               archiveType: 'zip'
               archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
               replaceExistingArchive: true
